@@ -11,12 +11,14 @@
 ## ============================================================
 
 param(
-    [string]$Server     = "localhost",       # SQL Server instance (no ADMIN: prefix here)
-    [string]$Database   = "YourDatabase",    # Target database
-    [string]$OutputDir  = ".\DecryptedProcs",# Where to write .sql files
-    [switch]$WindowsAuth,                    # Use Windows auth (default)
-    [string]$SqlUser    = "",                # SQL login (if not using Windows auth)
-    [string]$SqlPass    = ""                 # SQL password
+    [string]$Server               = "localhost",       # SQL Server instance (no ADMIN: prefix here)
+    [string]$Database             = "YourDatabase",    # Target database
+    [string]$OutputDir            = ".\DecryptedProcs",# Where to write .sql files
+    [switch]$WindowsAuth,                              # Use Windows auth (default)
+    [string]$SqlUser              = "",                # SQL login (if not using Windows auth)
+    [string]$SqlPass              = "",                # SQL password
+    [switch]$EncryptConnection,                        # Enable TLS encryption on the connection
+    [switch]$TrustServerCertificate                    # Skip SSL certificate validation
 )
 
 Set-StrictMode -Version Latest
@@ -25,15 +27,24 @@ $ErrorActionPreference = "Stop"
 ## ----- helpers ---------------------------------------------------------------
 
 function New-DacConnection {
-    param([string]$Server, [string]$Database, [string]$User, [string]$Pass)
+    param(
+        [string]$Server,
+        [string]$Database,
+        [string]$User,
+        [string]$Pass,
+        [bool]$Encrypt,
+        [bool]$TrustCert
+    )
 
     # DAC requires the "ADMIN:" prefix
     $dacServer = "ADMIN:$Server"
+    $encryptVal     = if ($Encrypt)    { "True" } else { "False" }
+    $trustCertVal   = if ($TrustCert)  { "True" } else { "False" }
 
     if ($User) {
-        $cs = "Data Source=$dacServer;Initial Catalog=$Database;User Id=$User;Password=$Pass;Encrypt=False;"
+        $cs = "Data Source=$dacServer;Initial Catalog=$Database;User Id=$User;Password=$Pass;Encrypt=$encryptVal;TrustServerCertificate=$trustCertVal;"
     } else {
-        $cs = "Data Source=$dacServer;Initial Catalog=$Database;Integrated Security=SSPI;Encrypt=False;"
+        $cs = "Data Source=$dacServer;Initial Catalog=$Database;Integrated Security=SSPI;Encrypt=$encryptVal;TrustServerCertificate=$trustCertVal;"
     }
 
     $conn = New-Object System.Data.SqlClient.SqlConnection($cs)
@@ -167,7 +178,8 @@ Write-Host "Connecting to DAC: ADMIN:$Server / $Database ..." -ForegroundColor C
 
 $conn = $null
 try {
-    $conn = New-DacConnection -Server $Server -Database $Database -User $SqlUser -Pass $SqlPass
+    $conn = New-DacConnection -Server $Server -Database $Database -User $SqlUser -Pass $SqlPass `
+                              -Encrypt $EncryptConnection.IsPresent -TrustCert $TrustServerCertificate.IsPresent
     Write-Host "Connected." -ForegroundColor Green
 } catch {
     Write-Error "DAC connection failed: $_`n`nTips:`n  - Are you connecting from the same machine as SQL Server?`n  - For remote DAC: EXEC sp_configure 'remote admin connections', 1; RECONFIGURE;`n  - Check firewall for TCP port 1434 (DAC port)"
