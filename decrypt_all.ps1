@@ -110,7 +110,7 @@ function Decrypt-SqlObject {
         $sql = "SELECT CAST(imageval AS NVARCHAR(MAX)) AS chunk
                 FROM sys.sysobjvalues
                 WHERE objid = $ObjId AND valclass = 1 AND subobjid = $sub"
-        $rows = Invoke-Sql -Conn $Conn -Sql $sql
+        $rows = @(Invoke-Sql -Conn $Conn -Sql $sql)
         if ($rows.Count -eq 0) { break }
         $encChunks += $rows[0].chunk
         $sub++
@@ -142,7 +142,7 @@ function Decrypt-SqlObject {
         $sql = "SELECT CAST(imageval AS NVARCHAR(MAX)) AS chunk
                 FROM sys.sysobjvalues
                 WHERE objid = $ObjId AND valclass = 1 AND subobjid = $sub"
-        $rows = Invoke-Sql -Conn $Conn -Sql $sql
+        $rows = @(Invoke-Sql -Conn $Conn -Sql $sql)
         if ($rows.Count -eq 0) { break }
         $fakeChunks += $rows[0].chunk
         $sub++
@@ -175,7 +175,7 @@ try {
 }
 
 # Query all encrypted objects
-$encObjects = Invoke-Sql -Conn $conn -Sql @"
+$encObjects = @(Invoke-Sql -Conn $conn -Sql @"
 SELECT
     o.object_id,
     SCHEMA_NAME(o.schema_id) AS schema_name,
@@ -186,7 +186,7 @@ JOIN sys.sql_modules m ON m.object_id = o.object_id
 WHERE m.definition IS NULL          -- encrypted (definition hidden)
   AND o.type IN ('P','PC','RF','FN','IF','TF','TR','V')
 ORDER BY SCHEMA_NAME(o.schema_id), o.name;
-"@
+"@)
 
 if ($encObjects.Count -eq 0) {
     Write-Host "No encrypted objects found in [$Database]." -ForegroundColor Yellow
